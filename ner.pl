@@ -1,55 +1,47 @@
 #!/usr/bin/env perl
 
-# Stopord fra http://snowball.tartarus.org/algorithms/danish/stop.txt
-# Fornavne fra http://www.familiestyrelsen.dk/soeginavnelister/godkendtefornavne/advanced/
-# Efternavne fra http://finnholbek.dk/genealogy/surnames-all.php?tree=
+# stop words from http://snowball.tartarus.org/algorithms/danish/stop.txt
+# names from http://www.familiestyrelsen.dk/soeginavnelister/godkendtefornavne/advanced/
+# surnames from http://finnholbek.dk/genealogy/surnames-all.php?tree=
 # Stednavne: http://www.stednavneudvalget.ku.dk/autoriserede_stednavne/
 
 use Modern::Perl;
 use JSON;
 
+# slurp data from stdin
 my $message;
 {
   local $/ = undef;
   $message = <STDIN>;
 }
 
+# make perl understand utf8 input
 utf8::decode($message);
 
-open my $stopwords, '<', 'stopwords.txt' or die "$!";
-my @stopwords;
-while (<$stopwords>) {
-  chomp;
-  push @stopwords, $_;
-}
-close $stopwords;
+# initialize word lists
+my @stopwords = get_wordlist('stopwords.txt');
+my @names     = get_wordlist('names.txt');
+my @initwords = get_initwords();
 
-open my $names, '<', 'names.txt' or die "$!";
-my @names;
-while (<$names>) {
-  chomp;
-  push @names, $_;
-}
-close $names;
-
-my @initwords = ('bin', 'de', 'du', 'van', 'der', 'von', 'mc', 'mac', 'le', 'for');
-
+# convert word lists to hashes for easy lookup
 my %stopwords = map { $_ => 1 } @stopwords;
 my %names     = map { $_ => 1 } @names;
 my %initwords = map { $_ => 1 } @initwords;
 
+# init result hash
 my $ner = {};
 
-$message =~ s/\\u([[:xdigit:]]{1,4})/chr(eval("0x$1"))/egis;
-
+# tokenize input
 my @tokens = split /[\s\?\.,\"'«»\!\(\)\\]/, $message;
 @tokens = grep { $_ ne '' } @tokens;
 
+# try to find named entities in the list of tokens
 my @entity;
 for (my $i = 0; $i <= $#tokens; $i++) {
   my @entity = ();
   my $token = $tokens[$i];
 
+  # proceed if the token is uppercase or a year but NOT a stop word or initword
   if ((lc($token) ne $token || $token =~ /^\d{4}$/ ) && !exists($stopwords{lc($token)}) && !exists($initwords{lc($token)})) {
     push @entity, $token;
 
@@ -74,4 +66,25 @@ for (my $i = 0; $i <= $#tokens; $i++) {
   }
 }
 
+# return json-encoded data
 print encode_json($ner);
+
+# utility functions
+
+sub get_wordlist {
+  my $filename = shift;
+
+  open my $fh, '<', $filename or die "Can't open $filename: $!";
+  my @wordlist;
+  while (<$fh>) {
+    chomp;
+    push @wordlist, $_;
+  }
+  close $fh;
+
+  return @wordlist;
+}
+
+sub get_initwords {
+  return ('bin', 'de', 'du', 'van', 'der', 'von', 'mc', 'mac', 'le', 'for');
+}
