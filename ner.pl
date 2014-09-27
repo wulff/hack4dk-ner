@@ -56,12 +56,33 @@ for (my $i = 0; $i <= $#tokens; $i++) {
     }
 
     SWITCH: {
-      $entity[0] =~ /^\d{4}$/                   && do { push @{$ner->{years}}, $entity[0]; last SWITCH; };
-      $entity[0] =~ /^\w+:/                     && do { push @{$ner->{bylines}}, "@entity"; last SWITCH; };
-      "@entity"  =~ /[a-z]\s+\d+$/              && do { push @{$ner->{addresses}}, "@entity"; last SWITCH; };
-      $entity[0] =~ /gade$|vej$|pladsen$|torv$/ && do { push @{$ner->{addresses}}, "@entity"; last SWITCH; };
-      exists($names{$entity[0]})                && do { push @{$ner->{names}}, "@entity"; last SWITCH; };
-      1                                         && do { push @{$ner->{tags}}, "@entity"; last SWITCH; };
+      # the entity is a year (well, any 4-digit number)
+      $entity[0] =~ /^\d{4}$/ && do {
+        push @{$ner->{years}}, $entity[0]; last SWITCH;
+      };
+
+      # the entity looks like a byline, e.g. "Foto: Ole Larsen"
+      $entity[0] =~ /^\w+:/ && do {
+        push @{$ner->{bylines}}, "@entity"; last SWITCH;
+      };
+
+      # the entity looks like an address, e.g. "Hovedvejen 42"
+      "@entity"  =~ /[a-z]\s+\d+$/ && do {
+        push @{$ner->{addresses}}, "@entity"; last SWITCH;
+      };
+
+      # the entity looks like a street name, e.g. ends with "-gade"
+      $entity[0] =~ /gade$|vej$|pladsen$|torv$/ && do {
+        push @{$ner->{addresses}}, "@entity"; last SWITCH;
+      };
+
+      # the first part of the entity is a legal name
+      exists($names{$entity[0]}) && do {
+        push @{$ner->{names}}, "@entity"; last SWITCH;
+      };
+
+      # everything else goes in the "tags" pile
+      1 && do { push @{$ner->{tags}}, "@entity"; last SWITCH; };
     }
   }
 }
